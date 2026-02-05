@@ -3,7 +3,10 @@ pipeline {
   stages {
     stage('Build') {
       steps {
-        sh 'mvn clean package'
+         sh '''
+          mvn clean package
+          cp target/*.war /shared/apps/hola.war
+        '''
       }
     }
   }
