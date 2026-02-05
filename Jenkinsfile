@@ -38,7 +38,7 @@ pipeline {
       steps {
         sh '''
           docker exec my-weblogic mkdir -p /u01/oracle/wlst
-          docker cp deploy/wlst/. my-weblogic:/u01/oracle/wlst/
+          docker cp wlst/. my-weblogic:/u01/oracle/wlst/
         '''
       }
     }
