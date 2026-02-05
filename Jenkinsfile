@@ -25,6 +25,15 @@ pipeline {
       }
     }
 
+    stage('Copy WAR to WebLogic container') {
+      steps {
+        sh '''
+          docker exec my-weblogic mkdir -p ${CONTAINER_APPS_DIR}
+          docker cp target/*.war my-weblogic:${CONTAINER_APPS_DIR}/${APP_NAME}.war
+        '''
+      }
+    }
+
     // stage('Copy WAR to Shared Folder') {
     //   steps {
     //     sh '''
