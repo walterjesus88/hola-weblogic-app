@@ -26,7 +26,7 @@ ENVS = {
 
 if ENV not in ENVS:
     print('❌ Ambiente inválido:', ENV)
-    exit(1)
+    sys.exit(1)
 
 cfg = ENVS[ENV]
 
@@ -60,7 +60,7 @@ except Exception, e:
     print('❌ Deployment failed')
     print(e)
     dumpStack()
-    exit(1)
+    sys.exit(1)
 
 disconnect()
-exit()
+sys.exit(0)
