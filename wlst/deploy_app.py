@@ -43,10 +43,14 @@ print('====================================')
 connect(WLS_USER, WLS_PASS, cfg['url'])
 
 try:
-    if appExists(APP_NAME):
+
+    domainRuntime()
+    appMBean = getMBean('/AppDeployments/' + APP_NAME)
+
+    if appMBean:
         print('🔁 Redeploying application:', APP_NAME)
         undeploy(APP_NAME, targets=cfg['target'])
-    
+
     print('🚀 Deploying application:', APP_NAME)
     deploy(
         appName=APP_NAME,
@@ -57,6 +61,7 @@ try:
     )
 
     print('✅ Deployment successful')
+
 
 except Exception, e:
     print('❌ Deployment failed')
