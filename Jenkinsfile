@@ -34,14 +34,7 @@ pipeline {
       }
     }
 
-    // stage('Copy WAR to Shared Folder') {
-    //   steps {
-    //     sh '''
-    //       mkdir -p ${SHARED_DIR}
-    //       cp target/*.war ${SHARED_DIR}/${APP_NAME}.war
-    //     '''
-    //   }
-    // }
+
     
     stage('Copy WLST scripts to container') {
       steps {
