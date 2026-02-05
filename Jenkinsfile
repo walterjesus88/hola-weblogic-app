@@ -25,14 +25,15 @@ pipeline {
       }
     }
 
-    stage('Copy WAR to WebLogic container') {
-      steps {
-        sh """
-          docker exec my-weblogic mkdir -p ${CONTAINER_DIR}
-          docker cp target/${APP_NAME}.war my-weblogic:${CONTAINER_DIR}/${APP_NAME}.war
-        """
-      }
+   stage('Copy WAR to WebLogic container') {
+    steps {
+      sh '''
+        docker exec my-weblogic mkdir -p /u01/oracle/apps/${ENV}
+        docker cp target/*.war my-weblogic:/u01/oracle/apps/${ENV}/hola.war
+      '''
     }
+  }
+
         
     stage('Copy WLST scripts to container') {
       steps {
