@@ -47,7 +47,7 @@ pipeline {
     stage('Deploy to WebLogic') {
       steps {
         withCredentials([usernamePassword(
-          credentialsId: 'c51d00d6-33b7-411c-acbb-bb8bee9d21f3',
+          credentialsId: 'weblogic-creds',
           usernameVariable: 'WLS_USER',
           passwordVariable: 'WLS_PASS'
         )]) {
