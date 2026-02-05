@@ -35,6 +35,8 @@ print(' Deploying to environment:', ENV)
 print(' URL:', cfg['url'])
 print(' Target:', cfg['target'])
 print(' WAR:', WAR_PATH)
+print(' USER:',WLS_USER)
+print(' PASS:',WLS_PASS)
 print('====================================')
 
 # conexión
