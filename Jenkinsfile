@@ -28,8 +28,8 @@ pipeline {
     stage('Copy WAR to WebLogic container') {
       steps {
         sh """
-          docker exec my-weblogic mkdir -p ${CONTAINER_APPS_DIR}
-          docker cp target/${APP_NAME}.war my-weblogic:${CONTAINER_APPS_DIR}/${APP_NAME}.war
+          docker exec my-weblogic mkdir -p ${CONTAINER_DIR}
+          docker cp target/${APP_NAME}.war my-weblogic:${CONTAINER_DIR}/${APP_NAME}.war
         """
       }
     }
