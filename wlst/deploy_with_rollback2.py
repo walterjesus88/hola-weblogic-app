@@ -18,9 +18,9 @@ WAR_PATH = sys.argv[6]
 # }
 
 ENVS = {
-    'dev':  {'url': 't3://my-weblogic-dev:7001', 'container': 'my-weblogic-dev'},
-    'qa':   {'url': 't3://my-weblogic-qa:7001', 'container': 'my-weblogic-qa'},
-    'prod': {'url': 't3://my-weblogic-prod:7001', 'container': 'my-weblogic-prod'}
+    'dev':  {'url': 't3://my-weblogic-dev:7001', 'container': 'my-weblogic-dev','target': 'AdminServer'},
+    'qa':   {'url': 't3://my-weblogic-qa:7001', 'container': 'my-weblogic-qa','target': 'AdminServer'},
+    'prod': {'url': 't3://my-weblogic-prod:7001', 'container': 'my-weblogic-prod','target': 'AdminServer'}
 }
 
 if ENV not in ENVS:
