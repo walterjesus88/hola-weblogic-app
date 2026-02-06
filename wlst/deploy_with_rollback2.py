@@ -4,11 +4,11 @@ ENV = sys.argv[1]
 WLS_USER = sys.argv[2]
 WLS_PASS = sys.argv[3]
 APP_BASE = sys.argv[4]
-VERSION =  "fail"  #sys.argv[5]
+VERSION =  sys.argv[5] #"fail"
 WAR_PATH = sys.argv[6]
 
-if VERSION == "fail":
-    raise Exception("Forced failure for rollback test")
+# if VERSION == "fail":
+#     raise Exception("Forced failure for rollback test")
 
 
 ENVS = {
