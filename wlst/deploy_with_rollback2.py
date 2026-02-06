@@ -11,10 +11,16 @@ WAR_PATH = sys.argv[6]
 #     raise Exception("Forced failure for rollback test")
 
 
+# ENVS = {
+#     'dev':  {'url': 't3://localhost:7001', 'target': 'AdminServer'},
+#     'qa':   {'url': 't3://localhost:7001', 'target': 'AdminServer'},
+#     'prod': {'url': 't3://localhost:7001', 'target': 'AdminServer'}
+# }
+
 ENVS = {
-    'dev':  {'url': 't3://localhost:7001', 'target': 'AdminServer'},
-    'qa':   {'url': 't3://localhost:7001', 'target': 'AdminServer'},
-    'prod': {'url': 't3://localhost:7001', 'target': 'AdminServer'}
+    'dev':  {'url': 't3://my-weblogic-dev:7001',  'target': 'AdminServer'},
+    'qa':   {'url': 't3://my-weblogic-qa:7001',   'target': 'AdminServer'},
+    'prod': {'url': 't3://my-weblogic-prod:7001', 'target': 'AdminServer'}
 }
 
 if ENV not in ENVS:
