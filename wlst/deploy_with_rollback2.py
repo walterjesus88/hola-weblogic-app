@@ -63,7 +63,7 @@ try:
         path=WAR_PATH,
         targets=cfg['target'],
         upload='false',
-        stageMode='nostage'
+        stageMode='nostage',
         contextRoot=context_root  # 👈 CLAVE
     )
 
