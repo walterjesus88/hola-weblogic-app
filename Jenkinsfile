@@ -29,7 +29,7 @@ pipeline {
     steps {
       sh '''
         docker exec my-weblogic mkdir -p /u01/oracle/apps/${ENV}
-        docker cp target/*.war my-weblogic:/u01/oracle/apps/${ENV}/hola.war
+        docker cp target/*.war my-weblogic:/u01/oracle/apps/${ENV}/${APP_NAME}.war
       '''
     }
   }
