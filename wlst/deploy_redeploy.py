@@ -14,65 +14,96 @@ ENVS = {
 }
 
 if ENV not in ENVS:
-    print('❌ Ambiente inválido')
+    print('❌ Ambiente invalido')
     sys.exit(1)
 
 cfg = ENVS[ENV]
 
-# Usar NOMBRE FIJO (no incluir versión en el nombre de la app)
-APP_NAME = "%s-%s" % (APP_BASE, ENV)  # 👈 hola-prod (sin número de versión)
-#CONTEXT_ROOT = '/%s' % APP_BASE  # /hola
+# Nombre fijo de la app (sin versión)
+APP_NAME = "%s-%s" % (APP_BASE, ENV)  # hola-dev
+CONTEXT_ROOT = '/%s' % APP_BASE  # /hola
 
 print("====================================")
 print(" ENV         :", ENV)
 print(" APP NAME    :", APP_NAME)
 print(" VERSION     :", VERSION)
-#print(" CONTEXT ROOT:", CONTEXT_ROOT)
+print(" CONTEXT ROOT:", CONTEXT_ROOT)
 print(" WAR         :", WAR_PATH)
+print(" TARGET      :", cfg['target'])
 print("====================================")
 
 connect(WLS_USER, WLS_PASS, cfg['url'])
 
+# Variable para guardar estado de rollback
+previous_war_path = None
+
 try:
-    # Verificar si la app ya existe
+    # Verificar si existe la app
     appExists = False
     try:
         appDeployment = getMBean('/AppDeployments/' + APP_NAME)
         if appDeployment:
             appExists = True
-            print("🟢 App exists - doing PRODUCTION REDEPLOYMENT")
+            # Guardar el path del WAR anterior para rollback
+            previous_war_path = appDeployment.getSourcePath()
+            print("🟢 App exists. Previous WAR:", previous_war_path)
     except:
-        print("🆕 App doesn't exist - doing INITIAL DEPLOYMENT")
+        print("🆕 App doesn't exist")
     
     if appExists:
-        # PRODUCTION REDEPLOYMENT (zero downtime)
-        print("🚀 Starting production redeployment...")
-        redeploy(
-            appName=APP_NAME,
-            planPath=WAR_PATH,
-            upload='false'
-        )
-        print("✅ Production redeployment completed (zero downtime)")
-    else:
-        # INITIAL DEPLOYMENT
-        print("🚀 Deploying for first time...")
-        deploy(
-            appName=APP_NAME,
-            path=WAR_PATH,
-            targets=cfg['target'],
-            upload='false',
-            stageMode='nostage',
-            #contextRoot=CONTEXT_ROOT
-        )
-        startApplication(APP_NAME)
-        print("✅ Initial deployment completed")
-
-    #print("🎉 Application is live at:", CONTEXT_ROOT)
+        # ACTUALIZACIÓN: Undeploy + Deploy
+        print("🔄 Updating application...")
+        
+        print("🛑 Stopping current version...")
+        stopApplication(APP_NAME)
+        
+        print("🗑️ Undeploying current version...")
+        undeploy(APP_NAME, targets=cfg['target'])
+    
+    # Deploy la nueva versión (funciona tanto para inicial como para update)
+    print("🚀 Deploying version %s..." % VERSION)
+    deploy(
+        appName=APP_NAME,
+        path=WAR_PATH,
+        targets=cfg['target'],
+        upload='false',
+        stageMode='nostage',
+        contextRoot=CONTEXT_ROOT
+    )
+    
+    print("✅ Deployment successful")
+    
+    print("🔄 Starting application...")
+    startApplication(APP_NAME)
+    
+    print("🎉 Application is LIVE")
+    print("   Name: %s" % APP_NAME)
+    print("   Version: %s" % VERSION)
+    print("   Context: %s" % CONTEXT_ROOT)
 
 except Exception, e:
     print("❌ ERROR during deploy")
-    print(e)
+    print("Error:", str(e))
     dumpStack()
+    
+    # ROLLBACK si había una versión anterior
+    if previous_war_path:
+        print("↩️ ROLLBACK: Redeploying previous version...")
+        try:
+            deploy(
+                appName=APP_NAME,
+                path=previous_war_path,
+                targets=cfg['target'],
+                upload='false',
+                stageMode='nostage',
+                contextRoot=CONTEXT_ROOT
+            )
+            startApplication(APP_NAME)
+            print("✅ Rollback successful - previous version restored")
+        except Exception, rollback_error:
+            print("❌ Rollback FAILED:", str(rollback_error))
+            print("⚠️ MANUAL INTERVENTION REQUIRED")
+    
     sys.exit(1)
 
 disconnect()
