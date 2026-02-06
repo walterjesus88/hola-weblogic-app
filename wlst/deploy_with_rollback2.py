@@ -64,7 +64,7 @@ try:
         targets=cfg['target'],
         upload='false',
         stageMode='nostage',
-        contextRoot=context_root  # 👈 CLAVE
+        #contextRoot=context_root  # 👈 CLAVE
     )
 
     print("✅ Deployment OK")
