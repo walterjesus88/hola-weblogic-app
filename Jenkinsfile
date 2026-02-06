@@ -39,7 +39,7 @@ pipeline {
       steps {
         sh """
           docker exec ${CONTAINER} mkdir -p ${CONTAINER_APPS}
-          docker cp target/*.war my-weblogic:${CONTAINER_APPS}/${WAR_NAME}
+          docker cp target/*.war ${CONTAINER}:${CONTAINER_APPS}/${WAR_NAME}
         """
       }
     }
