@@ -10,12 +10,21 @@ pipeline {
   }
 
   environment {
-    APP_NAME = "hola-${params.ENV}"
-    SHARED_DIR = "/shared/apps/${params.ENV}"
-    CONTAINER_DIR = "/u01/oracle/apps/${params.ENV}"
+    APP_BASE = 'hola'
+    CONTAINER_APPS = "/u01/oracle/apps/${params.ENV}"
+    WLST_DIR = "/u01/oracle/wlst"
+    VERSION = "${BUILD_NUMBER}"
+    APP_VERSIONED = "${APP_BASE}-${params.ENV}-${VERSION}"
+    WAR_NAME = "${APP_VERSIONED}.war"
   }
 
   stages {
+
+    stage('Checkout') {
+      steps {
+        checkout scm
+      }
+    }
 
     stage('Build WAR') {
       steps {
@@ -25,27 +34,25 @@ pipeline {
       }
     }
 
-   stage('Copy WAR to WebLogic container') {
-    steps {
-      sh '''
-        docker exec my-weblogic mkdir -p /u01/oracle/apps/${ENV}
-        docker cp target/*.war my-weblogic:/u01/oracle/apps/${ENV}/${APP_NAME}.war
-      '''
-    }
-  }
-
-        
-    stage('Copy WLST scripts to container') {
+    stage('Copy WAR to WebLogic container') {
       steps {
-        sh '''
-          docker exec my-weblogic mkdir -p /u01/oracle/wlst
-          docker cp wlst/. my-weblogic:/u01/oracle/wlst/
-        '''
+        sh """
+          docker exec my-weblogic mkdir -p ${CONTAINER_APPS}
+          docker cp target/*.war my-weblogic:${CONTAINER_APPS}/${WAR_NAME}
+        """
       }
     }
 
+    stage('Copy WLST scripts to container') {
+      steps {
+        sh """
+          docker exec my-weblogic mkdir -p ${WLST_DIR}
+          docker cp wlst/. my-weblogic:${WLST_DIR}/
+        """
+      }
+    }
 
-    stage('Deploy to WebLogic') {
+    stage('Deploy Blue/Green with Rollback') {
       steps {
         withCredentials([usernamePassword(
           credentialsId: 'weblogic-creds',
@@ -54,17 +61,27 @@ pipeline {
         )]) {
 
           sh """
-          docker exec my-weblogic \
-          /u01/oracle/oracle_common/common/bin/wlst.sh \
-          /u01/oracle/wlst/deploy_app.py \
-          ${params.ENV} \
-          $WLS_USER \
-          $WLS_PASS \
-          ${CONTAINER_DIR}/${APP_NAME}.war \
-          ${APP_NAME}
+            docker exec my-weblogic \
+            /u01/oracle/oracle_common/common/bin/wlst.sh \
+            ${WLST_DIR}/deploy_with_rollback2.py \
+            ${params.ENV} \
+            ${WLS_USER} \
+            ${WLS_PASS} \           
+            ${APP_BASE} \
+            ${APP_VERSIONED} \
+            ${CONTAINER_APPS}/${WAR_NAME} 
           """
         }
       }
+    }
+  }
+
+  post {
+    success {
+      echo "✅ Deploy exitoso en ${params.ENV}"
+    }
+    failure {
+      echo "❌ Deploy falló. Rollback aplicado automáticamente."
     }
   }
 }
