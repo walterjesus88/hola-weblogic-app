@@ -64,7 +64,7 @@ pipeline {
           sh """
             docker exec ${CONTAINER} \
             /u01/oracle/oracle_common/common/bin/wlst.sh \
-            ${WLST_DIR}/deploy_with_rollback2.py \
+            ${WLST_DIR}/deploy_redeploy.py \
             ${params.ENV} \
             ${WLS_USER} \
             ${WLS_PASS} \
