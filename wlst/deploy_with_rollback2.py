@@ -54,6 +54,9 @@ try:
 
     print("🟢 Active apps:", active_apps)
 
+    # Context root único por ambiente
+    context_root = '/%s-%s' % (APP_BASE, ENV)  # 👈 /hola-dev, /hola-qa, /hola-prod
+
     print("🚀 Deploying new version...")
     deploy(
         appName=NEW_APP,
@@ -61,6 +64,7 @@ try:
         targets=cfg['target'],
         upload='false',
         stageMode='nostage'
+        contextRoot=context_root  # 👈 CLAVE
     )
 
     print("✅ Deployment OK")
