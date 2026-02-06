@@ -66,7 +66,7 @@ pipeline {
             ${WLST_DIR}/deploy_with_rollback2.py \
             ${params.ENV} \
             ${WLS_USER} \
-            ${WLS_PASS} \       
+            ${WLS_PASS} \
             ${APP_BASE} \
             ${APP_VERSIONED} \
             ${CONTAINER_APPS}/${WAR_NAME} 
