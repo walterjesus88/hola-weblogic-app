@@ -10,7 +10,7 @@ pipeline {
   }
 
   environment {
-    APP_NAME = 'hola'
+    APP_NAME = "hola-${params.ENV}"
     SHARED_DIR = "/shared/apps/${params.ENV}"
     CONTAINER_DIR = "/u01/oracle/apps/${params.ENV}"
   }
