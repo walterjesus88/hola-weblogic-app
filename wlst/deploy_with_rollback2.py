@@ -4,8 +4,12 @@ ENV = sys.argv[1]
 WLS_USER = sys.argv[2]
 WLS_PASS = sys.argv[3]
 APP_BASE = sys.argv[4]
-VERSION = sys.argv[5]
+VERSION =  "fail"  #sys.argv[5]
 WAR_PATH = sys.argv[6]
+
+if VERSION == "fail":
+    raise Exception("Forced failure for rollback test")
+
 
 ENVS = {
     'dev':  {'url': 't3://localhost:7001', 'target': 'AdminServer'},
@@ -34,6 +38,7 @@ def get_active_versions(base):
     apps = []
     for app in cmo.getAppDeployments():
         name = app.getName()
+       
         if name.startswith(base + "-" + ENV):
             apps.append(name)
     return apps
