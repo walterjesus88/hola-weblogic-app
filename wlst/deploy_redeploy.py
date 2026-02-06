@@ -27,7 +27,7 @@ print("====================================")
 print(" ENV         :", ENV)
 print(" APP NAME    :", APP_NAME)
 print(" VERSION     :", VERSION)
-print(" CONTEXT ROOT:", CONTEXT_ROOT)
+#print(" CONTEXT ROOT:", CONTEXT_ROOT)
 print(" WAR         :", WAR_PATH)
 print("====================================")
 
