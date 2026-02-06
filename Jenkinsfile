@@ -68,7 +68,7 @@ pipeline {
             ${WLS_USER} \
             ${WLS_PASS} \
             ${APP_BASE} \
-            ${APP_VERSIONED} \
+            ${VERSION} \
             ${CONTAINER_APPS}/${WAR_NAME} 
           """
         }
