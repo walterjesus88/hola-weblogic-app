@@ -16,6 +16,7 @@ pipeline {
     VERSION = "${BUILD_NUMBER}"
     APP_VERSIONED = "${APP_BASE}-${params.ENV}-${VERSION}"
     WAR_NAME = "${APP_VERSIONED}.war"
+    CONTAINER = "my-weblogic-${params.ENV}"
   }
 
   stages {
@@ -37,7 +38,7 @@ pipeline {
     stage('Copy WAR to WebLogic container') {
       steps {
         sh """
-          docker exec my-weblogic mkdir -p ${CONTAINER_APPS}
+          docker exec ${CONTAINER} mkdir -p ${CONTAINER_APPS}
           docker cp target/*.war my-weblogic:${CONTAINER_APPS}/${WAR_NAME}
         """
       }
@@ -46,8 +47,8 @@ pipeline {
     stage('Copy WLST scripts to container') {
       steps {
         sh """
-          docker exec my-weblogic mkdir -p ${WLST_DIR}
-          docker cp wlst/. my-weblogic:${WLST_DIR}/
+          docker exec ${CONTAINER} mkdir -p ${WLST_DIR}
+          docker cp wlst/. ${CONTAINER}:${WLST_DIR}/
         """
       }
     }
@@ -61,7 +62,7 @@ pipeline {
         )]) {
 
           sh """
-            docker exec my-weblogic \
+            docker exec ${CONTAINER} \
             /u01/oracle/oracle_common/common/bin/wlst.sh \
             ${WLST_DIR}/deploy_with_rollback2.py \
             ${params.ENV} \
@@ -76,12 +77,23 @@ pipeline {
     }
   }
 
-  post {
-    success {
-      echo "✅ Deploy exitoso en ${params.ENV}"
+    post {
+        failure {
+            echo '❌ Deploy falló. Rollback aplicado automáticamente.'
+        }
+        success {
+            script {
+                def url = ''
+                if (params.ENV == 'dev') {
+                    url = 'http://localhost:7001/hola'
+                } else if (params.ENV == 'qa') {
+                    url = 'http://localhost:7002/hola'
+                } else if (params.ENV == 'prod') {
+                    url = 'http://localhost:7003/hola'
+                }
+                echo "✅ Deploy exitoso en ${params.ENV}"
+                echo "🌐 Accede a: ${url}"
+            }
+        }
     }
-    failure {
-      echo "❌ Deploy falló. Rollback aplicado automáticamente."
-    }
-  }
 }
