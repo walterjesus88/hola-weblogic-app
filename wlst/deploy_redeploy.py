@@ -67,7 +67,7 @@ try:
         startApplication(APP_NAME)
         print("✅ Initial deployment completed")
 
-    print("🎉 Application is live at:", CONTEXT_ROOT)
+    #print("🎉 Application is live at:", CONTEXT_ROOT)
 
 except Exception, e:
     print("❌ ERROR during deploy")
