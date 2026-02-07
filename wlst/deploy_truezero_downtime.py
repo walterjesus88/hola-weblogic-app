@@ -47,71 +47,93 @@ def get_app_versions(appName):
         pass
     return versions
 
-def wait_for_app_state(appName, expectedState, maxWait=30):
+def get_active_version(appName):
     """
-    Espera hasta que la app alcance el estado esperado
-    expectedState: 'STATE_ACTIVE', 'STATE_ADMIN', 'STATE_NEW', etc.
+    Obtiene la versión actualmente ACTIVA (no RETIRED)
+    Retorna el nombre completo de la app activa o None
     """
-    print("  Waiting for %s to reach %s..." % (appName, expectedState))
-    waited = 0
-    while waited < maxWait:
-        try:
-            currentState = state(appName, 'AdminServer')
-            print("    Current state: %s" % currentState)
-            
-            if expectedState in currentState:
-                print("  OK - State reached: %s" % currentState)
-                return True
-        except:
-            # La app puede no existir si fue undeployed
-            if expectedState == 'REMOVED':
-                print("  OK - App removed")
-                return True
-        
-        Thread.sleep(2000)  # Esperar 2 segundos
-        waited += 2
-    
-    print("  WARNING - Timeout waiting for state %s" % expectedState)
-    return False
+    try:
+        cd('/AppDeployments')
+        apps = ls(returnMap='true')
+        for app in apps:
+            if app.startswith(appName + "#"):
+                try:
+                    cd('/AppDeployments/' + app)
+                    # Verificar si está en estado activo
+                    appBean = cmo
+                    deploymentState = appBean.getDeploymentState()
+                    cd('/')
+                    
+                    # STATE_ACTIVE = 2, STATE_RETIRED = 4
+                    if deploymentState == 2:
+                        return app
+                except:
+                    pass
+    except:
+        pass
+    return None
 
 try:
-    # Obtener versiones actuales
+    # PASO 1: Identificar versión activa ANTES del deploy
+    # ====================================================
+    
+    active_before = get_active_version(APP_NAME)
+    print("Active version before deploy:", active_before)
+    
+    # Obtener todas las versiones
     current_versions = get_app_versions(APP_NAME)
     current_versions.sort()
+    print("All versions:", current_versions)
     
-    print("Current versions:", current_versions)
+    # PASO 2: LIMPIAR versiones RETIRED (fallidas)
+    # =============================================
     
-    # PASO 1: LIMPIAR VERSIONES ANTIGUAS
-    # ===================================
+    print("Cleaning RETIRED versions...")
+    for ver in current_versions:
+        if ver != active_before:  # No tocar la versión activa
+            try:
+                cd('/AppDeployments/' + ver)
+                deploymentState = cmo.getDeploymentState()
+                cd('/')
+                
+                # Si está RETIRED (4), eliminarla
+                if deploymentState == 4:
+                    print("  Removing RETIRED version:", ver)
+                    undeploy(ver, targets=cfg['target'])
+                    Thread.sleep(2000)
+            except Exception, ex:
+                print("  Could not check/remove %s: %s" % (ver, str(ex)))
+    
+    # Refrescar lista después de limpiar
+    Thread.sleep(2000)
+    current_versions = get_app_versions(APP_NAME)
+    current_versions.sort()
+    print("Versions after cleanup:", current_versions)
+    
+    # PASO 3: Si hay 2 versiones, eliminar la más antigua
+    # ====================================================
     
     if len(current_versions) >= 2:
-        versions_to_remove = current_versions[:-1]
+        # Eliminar todas excepto la activa
+        versions_to_remove = [v for v in current_versions if v != active_before]
         
-        print("Cleaning old versions to make space...")
+        print("Making space for new version...")
         for old_version in versions_to_remove:
             print("  Removing:", old_version)
             try:
-                # Stop y esperar
                 stopApplication(old_version)
-                wait_for_app_state(old_version, 'STATE_ADMIN', 15)
+                Thread.sleep(3000)
                 
-                # Undeploy y esperar
                 undeploy(old_version, targets=cfg['target'])
-                Thread.sleep(3000)  # Espera fija después de undeploy
+                Thread.sleep(2000)
                 
                 print("  OK - Removed:", old_version)
             except Exception, ex:
                 print("  WARNING:", str(ex))
-                Thread.sleep(2000)
     
-    # Espera adicional
     Thread.sleep(3000)
     
-    # Refrescar lista
-    current_versions = get_app_versions(APP_NAME)
-    print("Versions after cleanup:", current_versions)
-    
-    # PASO 2: DESPLEGAR NUEVA VERSIÓN
+    # PASO 4: DESPLEGAR NUEVA VERSIÓN
     # ================================
     
     versioned_app_name = "%s#%s" % (APP_NAME, APP_VERSION)
@@ -126,39 +148,25 @@ try:
         stageMode='nostage'
     )
     
-    print("Deployment OK")
+    print("Deploy completed")
     Thread.sleep(3000)
     
     print("Starting new version...")
     startApplication(versioned_app_name)
     
-    # Esperar a que esté activa
-    if wait_for_app_state(versioned_app_name, 'STATE_ACTIVE', 30):
+    # Espera simple después de start
+    Thread.sleep(5000)
+    
+    # Verificar si se desplegó correctamente
+    active_after = get_active_version(APP_NAME)
+    print("Active version after deploy:", active_after)
+    
+    if active_after == versioned_app_name:
         print("SUCCESS - New version is LIVE")
         print("  Name:", versioned_app_name)
         print("  Access at: %s" % CONTEXT_ROOT)
     else:
-        raise Exception("App did not reach ACTIVE state in time")
-    
-    # PASO 3: LIMPIEZA FINAL
-    # =======================
-    
-    all_versions = get_app_versions(APP_NAME)
-    all_versions.sort()
-    
-    if len(all_versions) > 2:
-        excess_versions = all_versions[:-2]
-        print("Final cleanup...")
-        
-        for old_ver in excess_versions:
-            print("  Removing:", old_ver)
-            try:
-                stopApplication(old_ver)
-                Thread.sleep(2000)
-                undeploy(old_ver, targets=cfg['target'])
-                Thread.sleep(2000)
-            except:
-                pass
+        raise Exception("New version did not become active. Active: %s" % active_after)
     
     print("DEPLOYMENT COMPLETED SUCCESSFULLY")
 
@@ -167,25 +175,63 @@ except Exception, e:
     print("Error:", str(e))
     dumpStack()
     
-    # Esperar antes de rollback
+    # ROLLBACK INTELIGENTE
+    # ====================
+    
     print("Waiting before rollback...")
     Thread.sleep(5000)
     
-    # ROLLBACK
-    current_versions = get_app_versions(APP_NAME)
-    if current_versions:
-        versioned_app_name = "%s#%s" % (APP_NAME, APP_VERSION)
-        stable_versions = [v for v in current_versions if v != versioned_app_name]
-        
-        if stable_versions:
-            latest_stable = stable_versions[-1]
-            print("ROLLBACK: Reactivating", latest_stable)
+    # Buscar la última versión ACTIVA (no la que acabamos de intentar)
+    versioned_app_name = "%s#%s" % (APP_NAME, APP_VERSION)
+    
+    print("Identifying version for rollback...")
+    all_versions = get_app_versions(APP_NAME)
+    
+    # Filtrar: solo versiones que NO sean la nueva (fallida)
+    # y que NO estén RETIRED
+    candidate_versions = []
+    for ver in all_versions:
+        if ver != versioned_app_name:
             try:
-                startApplication(latest_stable)
-                wait_for_app_state(latest_stable, 'STATE_ACTIVE', 20)
-                print("Rollback successful")
-            except Exception, rollback_ex:
-                print("Rollback failed:", str(rollback_ex))
+                cd('/AppDeployments/' + ver)
+                deploymentState = cmo.getDeploymentState()
+                cd('/')
+                
+                # Solo versiones ACTIVE (2) o PREPARED (1)
+                if deploymentState in [1, 2]:
+                    candidate_versions.append(ver)
+            except:
+                pass
+    
+    if candidate_versions:
+        candidate_versions.sort()
+        rollback_version = candidate_versions[-1]  # La más reciente
+        
+        print("ROLLBACK: Activating", rollback_version)
+        try:
+            # Primero detener la versión fallida
+            try:
+                print("Stopping failed version:", versioned_app_name)
+                stopApplication(versioned_app_name)
+                Thread.sleep(3000)
+            except:
+                pass
+            
+            # Activar la versión de rollback
+            startApplication(rollback_version)
+            Thread.sleep(3000)
+            
+            active_after_rollback = get_active_version(APP_NAME)
+            if active_after_rollback == rollback_version:
+                print("Rollback successful - Active:", rollback_version)
+            else:
+                print("Rollback may have failed - Active:", active_after_rollback)
+                
+        except Exception, rollback_ex:
+            print("Rollback failed:", str(rollback_ex))
+    else:
+        print("No suitable version found for rollback")
+        print("Available versions:", all_versions)
     
     sys.exit(1)
 
