@@ -14,14 +14,14 @@ ENVS = {
 }
 
 if ENV not in ENVS:
-    print('❌ Ambiente invalido')
+    print('ERROR: Ambiente invalido')
     sys.exit(1)
 
 cfg = ENVS[ENV]
 
-APP_NAME = "%s-%s" % (APP_BASE, ENV)  # hola-dev
-APP_VERSION = "v%s" % VERSION  # v60, v61, v62...
-CONTEXT_ROOT = '/%s' % APP_BASE  # /hola
+APP_NAME = "%s-%s" % (APP_BASE, ENV)
+APP_VERSION = "v%s" % VERSION
+CONTEXT_ROOT = '/%s' % APP_BASE
 
 print("====================================")
 print(" ENV         :", ENV)
@@ -40,7 +40,7 @@ def get_app_versions(appName):
         cd('/AppDeployments')
         apps = ls(returnMap='true')
         for app in apps:
-            if app.startswith(appName):
+            if app.startswith(appName + "#"):
                 versions.append(app)
     except:
         pass
@@ -49,61 +49,93 @@ def get_app_versions(appName):
 try:
     # Obtener versiones actuales
     current_versions = get_app_versions(APP_NAME)
-    print("🟢 Current versions:", current_versions)
+    current_versions.sort()  # Ordenar para tener las más antiguas primero
     
-    # Nombre completo con versión: hola-dev#v60
+    print("Current versions:", current_versions)
+    
+    # PASO 1: LIMPIAR VERSIONES ANTIGUAS SI HAY 2 O MÁS
+    # ==================================================
+    # WebLogic permite máximo 2 versiones por defecto
+    # Si ya hay 2, eliminamos la más antigua para hacer espacio
+    
+    if len(current_versions) >= 2:
+        # Eliminar las versiones más antiguas, dejando solo la última
+        versions_to_remove = current_versions[:-1]  # Todas excepto la última
+        
+        print("Cleaning old versions to make space...")
+        for old_version in versions_to_remove:
+            print("  Removing:", old_version)
+            try:
+                stopApplication(old_version)
+                undeploy(old_version, targets=cfg['target'])
+                print("  OK - Removed:", old_version)
+            except Exception, ex:
+                print("  WARNING - Could not remove %s: %s" % (old_version, str(ex)))
+    
+    # Refrescar la lista después de limpiar
+    current_versions = get_app_versions(APP_NAME)
+    print("Versions after cleanup:", current_versions)
+    
+    # PASO 2: DESPLEGAR NUEVA VERSIÓN
+    # ================================
+    
     versioned_app_name = "%s#%s" % (APP_NAME, APP_VERSION)
     
-    print("🚀 Deploying new version:", versioned_app_name)
+    print("Deploying new version:", versioned_app_name)
     
-    # Deploy la nueva versión (coexiste con las anteriores)
     deploy(
         appName=versioned_app_name,
         path=WAR_PATH,
         targets=cfg['target'],
         upload='false',
-        stageMode='nostage',
-        contextRoot=CONTEXT_ROOT
+        stageMode='nostage'
     )
     
-    print("🔄 Starting new version...")
+    print("Deployment OK")
+    
+    print("Starting new version...")
     startApplication(versioned_app_name)
     
-    print("✅ New version deployed and started")
+    print("SUCCESS - New version is LIVE")
+    print("  Name:", versioned_app_name)
+    print("  Access at: %s" % CONTEXT_ROOT)
     
-    # Limpiar versiones antiguas (mantener solo las últimas 2)
+    # PASO 3: LIMPIAR VERSIONES ADICIONALES (opcional)
+    # =================================================
+    # Mantener solo las últimas 2 versiones como política de retención
+    
     all_versions = get_app_versions(APP_NAME)
-    all_versions.sort()  # Ordenar por nombre
+    all_versions.sort()
     
     if len(all_versions) > 2:
-        versions_to_remove = all_versions[:-2]  # Todas excepto las últimas 2
-        print("🧹 Cleaning old versions:", versions_to_remove)
+        excess_versions = all_versions[:-2]  # Todas excepto las últimas 2
+        print("Final cleanup - removing excess versions...")
         
-        for old_version in versions_to_remove:
+        for old_ver in excess_versions:
+            print("  Removing:", old_ver)
             try:
-                print("🗑️ Removing:", old_version)
-                stopApplication(old_version)
-                undeploy(old_version, targets=cfg['target'])
-            except Exception, ex:
-                print("⚠️ Failed to remove %s: %s" % (old_version, str(ex)))
+                stopApplication(old_ver)
+                undeploy(old_ver, targets=cfg['target'])
+            except:
+                pass
     
-    print("🎉 Deployment completed successfully")
-    print("   Live at: %s (version %s)" % (CONTEXT_ROOT, APP_VERSION))
+    print("DEPLOYMENT COMPLETED SUCCESSFULLY")
 
 except Exception, e:
-    print("❌ ERROR during deploy")
+    print("ERROR during deploy")
     print("Error:", str(e))
     dumpStack()
     
-    # Rollback: activar la versión anterior si existe
+    # ROLLBACK: Reactivar la última versión estable
+    current_versions = get_app_versions(APP_NAME)
     if current_versions:
-        latest_version = current_versions[-1]
-        print("↩️ Rolling back to:", latest_version)
+        latest_stable = current_versions[-1]
+        print("ROLLBACK: Reactivating", latest_stable)
         try:
-            startApplication(latest_version)
-            print("✅ Rollback successful")
+            startApplication(latest_stable)
+            print("Rollback successful")
         except:
-            print("❌ Rollback failed")
+            print("Rollback failed")
     
     sys.exit(1)
 
