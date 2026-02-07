@@ -1,4 +1,5 @@
 import sys
+from java.lang import Thread
 
 ENV = sys.argv[1]
 WLS_USER = sys.argv[2]
@@ -46,33 +47,67 @@ def get_app_versions(appName):
         pass
     return versions
 
+def wait_for_app_state(appName, expectedState, maxWait=30):
+    """
+    Espera hasta que la app alcance el estado esperado
+    expectedState: 'STATE_ACTIVE', 'STATE_ADMIN', 'STATE_NEW', etc.
+    """
+    print("  Waiting for %s to reach %s..." % (appName, expectedState))
+    waited = 0
+    while waited < maxWait:
+        try:
+            currentState = state(appName, 'AdminServer')
+            print("    Current state: %s" % currentState)
+            
+            if expectedState in currentState:
+                print("  OK - State reached: %s" % currentState)
+                return True
+        except:
+            # La app puede no existir si fue undeployed
+            if expectedState == 'REMOVED':
+                print("  OK - App removed")
+                return True
+        
+        Thread.sleep(2000)  # Esperar 2 segundos
+        waited += 2
+    
+    print("  WARNING - Timeout waiting for state %s" % expectedState)
+    return False
+
 try:
     # Obtener versiones actuales
     current_versions = get_app_versions(APP_NAME)
-    current_versions.sort()  # Ordenar para tener las más antiguas primero
+    current_versions.sort()
     
     print("Current versions:", current_versions)
     
-    # PASO 1: LIMPIAR VERSIONES ANTIGUAS SI HAY 2 O MÁS
-    # ==================================================
-    # WebLogic permite máximo 2 versiones por defecto
-    # Si ya hay 2, eliminamos la más antigua para hacer espacio
+    # PASO 1: LIMPIAR VERSIONES ANTIGUAS
+    # ===================================
     
     if len(current_versions) >= 2:
-        # Eliminar las versiones más antiguas, dejando solo la última
-        versions_to_remove = current_versions[:-1]  # Todas excepto la última
+        versions_to_remove = current_versions[:-1]
         
         print("Cleaning old versions to make space...")
         for old_version in versions_to_remove:
             print("  Removing:", old_version)
             try:
+                # Stop y esperar
                 stopApplication(old_version)
+                wait_for_app_state(old_version, 'STATE_ADMIN', 15)
+                
+                # Undeploy y esperar
                 undeploy(old_version, targets=cfg['target'])
+                Thread.sleep(3000)  # Espera fija después de undeploy
+                
                 print("  OK - Removed:", old_version)
             except Exception, ex:
-                print("  WARNING - Could not remove %s: %s" % (old_version, str(ex)))
+                print("  WARNING:", str(ex))
+                Thread.sleep(2000)
     
-    # Refrescar la lista después de limpiar
+    # Espera adicional
+    Thread.sleep(3000)
+    
+    # Refrescar lista
     current_versions = get_app_versions(APP_NAME)
     print("Versions after cleanup:", current_versions)
     
@@ -92,30 +127,36 @@ try:
     )
     
     print("Deployment OK")
+    Thread.sleep(3000)
     
     print("Starting new version...")
     startApplication(versioned_app_name)
     
-    print("SUCCESS - New version is LIVE")
-    print("  Name:", versioned_app_name)
-    print("  Access at: %s" % CONTEXT_ROOT)
+    # Esperar a que esté activa
+    if wait_for_app_state(versioned_app_name, 'STATE_ACTIVE', 30):
+        print("SUCCESS - New version is LIVE")
+        print("  Name:", versioned_app_name)
+        print("  Access at: %s" % CONTEXT_ROOT)
+    else:
+        raise Exception("App did not reach ACTIVE state in time")
     
-    # PASO 3: LIMPIAR VERSIONES ADICIONALES (opcional)
-    # =================================================
-    # Mantener solo las últimas 2 versiones como política de retención
+    # PASO 3: LIMPIEZA FINAL
+    # =======================
     
     all_versions = get_app_versions(APP_NAME)
     all_versions.sort()
     
     if len(all_versions) > 2:
-        excess_versions = all_versions[:-2]  # Todas excepto las últimas 2
-        print("Final cleanup - removing excess versions...")
+        excess_versions = all_versions[:-2]
+        print("Final cleanup...")
         
         for old_ver in excess_versions:
             print("  Removing:", old_ver)
             try:
                 stopApplication(old_ver)
+                Thread.sleep(2000)
                 undeploy(old_ver, targets=cfg['target'])
+                Thread.sleep(2000)
             except:
                 pass
     
@@ -126,16 +167,25 @@ except Exception, e:
     print("Error:", str(e))
     dumpStack()
     
-    # ROLLBACK: Reactivar la última versión estable
+    # Esperar antes de rollback
+    print("Waiting before rollback...")
+    Thread.sleep(5000)
+    
+    # ROLLBACK
     current_versions = get_app_versions(APP_NAME)
     if current_versions:
-        latest_stable = current_versions[-1]
-        print("ROLLBACK: Reactivating", latest_stable)
-        try:
-            startApplication(latest_stable)
-            print("Rollback successful")
-        except:
-            print("Rollback failed")
+        versioned_app_name = "%s#%s" % (APP_NAME, APP_VERSION)
+        stable_versions = [v for v in current_versions if v != versioned_app_name]
+        
+        if stable_versions:
+            latest_stable = stable_versions[-1]
+            print("ROLLBACK: Reactivating", latest_stable)
+            try:
+                startApplication(latest_stable)
+                wait_for_app_state(latest_stable, 'STATE_ACTIVE', 20)
+                print("Rollback successful")
+            except Exception, rollback_ex:
+                print("Rollback failed:", str(rollback_ex))
     
     sys.exit(1)
 
